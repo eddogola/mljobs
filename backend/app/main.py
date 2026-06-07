@@ -1,6 +1,7 @@
 import logging
 import os
 import threading
+from datetime import datetime, timezone
 from contextlib import asynccontextmanager
 from alembic.config import Config as AlembicConfig
 from alembic import command as alembic_command
@@ -19,9 +20,14 @@ logger = logging.getLogger(__name__)
 
 
 def run_migrations() -> None:
-    cfg = AlembicConfig("alembic.ini")
-    alembic_command.upgrade(cfg, "head")
-    logger.info("Database migrations applied")
+    logger.info("[startup 1/4] Running database migrations...")
+    try:
+        cfg = AlembicConfig("alembic.ini")
+        alembic_command.upgrade(cfg, "head")
+        logger.info("[startup 1/4] Migrations complete")
+    except Exception:
+        logger.exception("[startup 1/4] Migration FAILED — aborting startup")
+        raise
 
 
 def scheduled_ingest():
@@ -30,25 +36,34 @@ def scheduled_ingest():
         logger.info("Scheduled ingestion starting...")
         run_ingestion(db)
         run_parser(db, limit=50)
+    except Exception:
+        logger.exception("Ingestion failed")
     finally:
         db.close()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    logger.info("[startup] === JobLens starting ===")
+
     run_migrations()
 
+    logger.info("[startup 2/4] Starting background scheduler...")
     scheduler = BackgroundScheduler()
     scheduler.add_job(scheduled_ingest, "interval", hours=8, id="ingest")
     scheduler.start()
-    logger.info("Scheduler started — ingestion every 8 hours")
+    logger.info("[startup 2/4] Scheduler running — ingestion every 8 hours")
 
-    # Run initial ingestion in background so startup doesn't block the server
+    logger.info("[startup 3/4] Launching initial ingestion thread...")
     threading.Thread(target=scheduled_ingest, daemon=True).start()
+    logger.info("[startup 3/4] Ingestion thread launched (runs in background)")
 
+    logger.info("[startup 4/4] === JobLens ready — accepting requests ===")
     yield
 
+    logger.info("[shutdown] Stopping scheduler...")
     scheduler.shutdown()
+    logger.info("[shutdown] Done")
 
 
 app = FastAPI(title="JobLens API", lifespan=lifespan)
@@ -68,4 +83,4 @@ app.include_router(jobs_router)
 
 @app.get("/health")
 def health():
-    return {"status": "ok"}
+    return {"status": "ok", "time": datetime.now(timezone.utc).isoformat()}
