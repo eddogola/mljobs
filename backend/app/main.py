@@ -8,7 +8,8 @@ from alembic import command as alembic_command
 from apscheduler.schedulers.background import BackgroundScheduler
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.database import SessionLocal
+from app.database import SessionLocal, engine, Base
+from app.models import Job, JobAnalysis  # noqa: F401 — register models with Base
 from app.routers.jobs import router as jobs_router
 from app.workers.ingest import run_ingestion, run_parser
 
@@ -24,10 +25,13 @@ def run_migrations() -> None:
     try:
         cfg = AlembicConfig("alembic.ini")
         alembic_command.upgrade(cfg, "head")
-        logger.info("[startup 1/4] Migrations complete")
+        logger.info("[startup 1/4] Alembic migrations complete")
     except Exception:
-        logger.exception("[startup 1/4] Migration FAILED — aborting startup")
-        raise
+        logger.exception("[startup 1/4] Alembic migration failed — falling back to create_all")
+
+    logger.info("[startup 1/4] Ensuring all tables exist via create_all...")
+    Base.metadata.create_all(bind=engine)
+    logger.info("[startup 1/4] Tables ready")
 
 
 def scheduled_ingest():
