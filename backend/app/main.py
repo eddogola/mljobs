@@ -3,8 +3,6 @@ import os
 import threading
 from datetime import datetime, timezone
 from contextlib import asynccontextmanager
-from alembic.config import Config as AlembicConfig
-from alembic import command as alembic_command
 from apscheduler.schedulers.background import BackgroundScheduler
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -20,16 +18,8 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def run_migrations() -> None:
-    logger.info("[startup 1/4] Running database migrations...")
-    try:
-        cfg = AlembicConfig("alembic.ini")
-        alembic_command.upgrade(cfg, "head")
-        logger.info("[startup 1/4] Alembic migrations complete")
-    except Exception:
-        logger.exception("[startup 1/4] Alembic migration failed — falling back to create_all")
-
-    logger.info("[startup 1/4] Ensuring all tables exist via create_all...")
+def ensure_tables() -> None:
+    logger.info("[startup 1/4] Creating tables if not exist...")
     Base.metadata.create_all(bind=engine)
     logger.info("[startup 1/4] Tables ready")
 
@@ -50,7 +40,7 @@ def scheduled_ingest():
 async def lifespan(app: FastAPI):
     logger.info("[startup] === JobLens starting ===")
 
-    run_migrations()
+    ensure_tables()
 
     logger.info("[startup 2/4] Starting background scheduler...")
     scheduler = BackgroundScheduler()
