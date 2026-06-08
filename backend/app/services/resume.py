@@ -23,10 +23,10 @@ MUST-HAVE KEYWORDS FROM JD: {must_have_str}{focus_hint}
 
 RULES:
 1. KEYWORDS FIRST — Weave the JD's exact keywords, phrases, and terminology into every bullet point where they truthfully apply. If the JD says "distributed training at scale", use that phrase if the candidate has done it. Mirror the JD's language throughout.
-2. SUMMARY — Write a punchy 2-3 sentence professional summary at the top that directly addresses this specific role and company, using their exact language.
-3. REWRITE BULLETS — Transform generic bullets into achievement-focused, keyword-rich statements. Lead with strong action verbs. Quantify wherever possible. Every bullet should signal relevance to this role.
-4. SKILLS SECTION — Create a dedicated Technical Skills section listing all JD keywords the candidate genuinely has, grouped by category (Languages, Frameworks, Infrastructure, etc.).
-5. REORDER — Put the most relevant experience and projects first. Cut or minimise anything irrelevant to this role.
+2. REWRITE BULLETS — Transform generic bullets into achievement-focused, keyword-rich statements. Lead with strong action verbs. Quantify wherever possible. Every bullet should signal relevance to this role.
+3. SKILLS SECTION — Create a dedicated Technical Skills section listing all JD keywords the candidate genuinely has, grouped by category (Languages, Frameworks, Infrastructure, etc.).
+4. REORDER — Put the most relevant experience and projects first. Cut or minimise anything irrelevant to this role.
+5. NO SUMMARY — Do not include a professional summary or objective statement.
 6. TRUTH — Do not fabricate experience, metrics, or skills. Only use what's in the resume. Reframe and reword aggressively, but never invent.
 
 JOB DESCRIPTION:
