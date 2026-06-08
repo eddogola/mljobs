@@ -11,6 +11,7 @@ export default function ResumePage() {
   const [pasted, setPasted] = useState("");
   const [filename, setFilename] = useState("my-resume");
   const [status, setStatus] = useState<"idle" | "saving" | "saved" | "uploading" | "error">("idle");
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [errorMsg, setErrorMsg] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -32,29 +33,44 @@ export default function ResumePage() {
     setTimeout(() => setStatus("idle"), 2000);
   }
 
-  async function uploadPdf(e: React.ChangeEvent<HTMLInputElement>) {
+  function uploadPdf(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
     setStatus("uploading");
+    setUploadProgress(0);
     setErrorMsg("");
+
     const form = new FormData();
     form.append("file", file);
-    const r = await fetch(`${BASE}/api/resume/upload-pdf`, { method: "POST", body: form });
-    if (r.ok) {
-      const data = await r.json();
-      setResume({ filename: data.filename, content: "" });
-      setFilename(data.filename.replace(".pdf", ""));
-      // reload full content
-      const full = await fetch(`${BASE}/api/resume`);
-      if (full.ok) { const d = await full.json(); setPasted(d.content); }
-      setStatus("saved");
-      setTimeout(() => setStatus("idle"), 2000);
-    } else {
-      const err = await r.json();
-      setErrorMsg(err.detail || "Upload failed");
+
+    const xhr = new XMLHttpRequest();
+    xhr.upload.onprogress = (ev) => {
+      if (ev.lengthComputable) setUploadProgress(Math.round((ev.loaded / ev.total) * 100));
+    };
+    xhr.onload = async () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        const data = JSON.parse(xhr.responseText);
+        setFilename(data.filename.replace(".pdf", ""));
+        const full = await fetch(`${BASE}/api/resume`);
+        if (full.ok) { const d = await full.json(); setPasted(d.content); setResume(d); }
+        setUploadProgress(100);
+        setStatus("saved");
+        setTimeout(() => { setStatus("idle"); setUploadProgress(0); }, 2000);
+      } else {
+        const err = JSON.parse(xhr.responseText);
+        setErrorMsg(err.detail || "Upload failed");
+        setStatus("error");
+        setUploadProgress(0);
+      }
+      if (fileRef.current) fileRef.current.value = "";
+    };
+    xhr.onerror = () => {
+      setErrorMsg("Network error during upload");
       setStatus("error");
-    }
-    if (fileRef.current) fileRef.current.value = "";
+      setUploadProgress(0);
+    };
+    xhr.open("POST", `${BASE}/api/resume/upload-pdf`);
+    xhr.send(form);
   }
 
   const busy = status === "saving" || status === "uploading";
@@ -73,8 +89,24 @@ export default function ResumePage() {
 
       {/* Upload / save bar */}
       <div className="flex flex-wrap items-center gap-3 mb-4">
-        <label className={`cursor-pointer text-sm px-4 py-1.5 rounded border transition-colors ${busy ? "opacity-40 pointer-events-none" : ""} bg-white dark:bg-zinc-900 border-gray-200 dark:border-zinc-700 text-gray-700 dark:text-zinc-200 hover:bg-gray-50 dark:hover:bg-zinc-800`}>
-          {status === "uploading" ? "Uploading…" : "Upload PDF"}
+        <label
+          className={`relative overflow-hidden cursor-pointer text-sm px-4 py-1.5 rounded border transition-colors select-none
+            ${status === "uploading" ? "pointer-events-none border-gray-300 dark:border-zinc-600" : "border-gray-200 dark:border-zinc-700 hover:bg-gray-50 dark:hover:bg-zinc-800"}
+            bg-white dark:bg-zinc-900 text-gray-700 dark:text-zinc-200`}
+        >
+          {/* progress fill */}
+          {status === "uploading" && (
+            <span
+              className="absolute inset-y-0 left-0 bg-gray-200 dark:bg-zinc-700 transition-all duration-150"
+              style={{ width: `${uploadProgress}%` }}
+            />
+          )}
+          <span className="relative z-10">
+            {status === "uploading"
+              ? uploadProgress < 100 ? `${uploadProgress}%` : "Processing…"
+              : status === "saved" ? "Uploaded ✓"
+              : "Upload PDF"}
+          </span>
           <input ref={fileRef} type="file" accept=".pdf" className="hidden" onChange={uploadPdf} />
         </label>
 
