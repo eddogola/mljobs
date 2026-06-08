@@ -18,22 +18,39 @@ export default function JobPage({ params }: { params: Promise<{ id: string }> })
   const [saved, setSaved] = useState(false);
   const [tailoring, setTailoring] = useState(false);
   const [tailored, setTailored] = useState<string | null>(null);
+  const [tailorPhase, setTailorPhase] = useState<"idle" | "connecting" | "writing" | "done">("idle");
 
   async function tailorResume() {
     setTailoring(true);
-    setTailored(null);
+    setTailored("");
+    setTailorPhase("connecting");
+
     const r = await fetch(`${BASE}/api/resume/tailor/${id}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({}),
     });
-    if (r.ok) {
-      const data = await r.json();
-      setTailored(data.tailored);
-    } else if (r.status === 404) {
-      alert("Upload your resume first at /resume");
+
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}));
+      if (r.status === 404) alert(err.detail || "Upload your resume first at /resume");
+      setTailoring(false);
+      setTailorPhase("idle");
+      return;
+    }
+
+    setTailorPhase("writing");
+    const reader = r.body!.getReader();
+    const decoder = new TextDecoder();
+    let full = "";
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      full += decoder.decode(value, { stream: true });
+      setTailored(full);
     }
     setTailoring(false);
+    setTailorPhase("done");
   }
 
   useEffect(() => {
@@ -114,9 +131,12 @@ export default function JobPage({ params }: { params: Promise<{ id: string }> })
             <button
               onClick={tailorResume}
               disabled={tailoring}
-              className="text-sm bg-gray-100 dark:bg-zinc-800 hover:bg-gray-200 dark:hover:bg-zinc-700 text-gray-700 dark:text-zinc-200 px-3 py-2 rounded border border-gray-200 dark:border-zinc-700 transition-colors disabled:opacity-50"
+              className="text-sm bg-gray-100 dark:bg-zinc-800 hover:bg-gray-200 dark:hover:bg-zinc-700 text-gray-700 dark:text-zinc-200 px-3 py-2 rounded border border-gray-200 dark:border-zinc-700 transition-colors disabled:opacity-50 min-w-[120px]"
             >
-              {tailoring ? "Tailoring…" : "Tailor resume"}
+              {tailorPhase === "connecting" ? "Connecting…"
+                : tailorPhase === "writing" ? "Writing…"
+                : tailorPhase === "done" ? "Done ✓"
+                : "Tailor resume"}
             </button>
             <a
               href={job.url}
@@ -178,18 +198,28 @@ export default function JobPage({ params }: { params: Promise<{ id: string }> })
       )}
 
       {/* Tailored resume output */}
-      {tailored && (
+      {(tailored !== null && tailored !== "") && (
         <div className="mt-4 border border-gray-200 dark:border-zinc-800 rounded-lg p-5">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-semibold text-gray-700 dark:text-zinc-300">Tailored Resume</h2>
-            <button
-              onClick={() => window.print()}
-              className="text-xs bg-gray-100 dark:bg-zinc-800 hover:bg-gray-200 dark:hover:bg-zinc-700 text-gray-600 dark:text-zinc-300 px-3 py-1.5 rounded border border-gray-200 dark:border-zinc-700 transition-colors print:hidden"
-            >
-              Download PDF (print)
-            </button>
+            <div className="flex items-center gap-2">
+              <h2 className="text-sm font-semibold text-gray-700 dark:text-zinc-300">Tailored Resume</h2>
+              {tailorPhase === "writing" && (
+                <span className="text-xs text-gray-400 dark:text-zinc-500 animate-pulse">writing…</span>
+              )}
+            </div>
+            {tailorPhase === "done" && (
+              <button
+                onClick={() => window.print()}
+                className="text-xs bg-gray-100 dark:bg-zinc-800 hover:bg-gray-200 dark:hover:bg-zinc-700 text-gray-600 dark:text-zinc-300 px-3 py-1.5 rounded border border-gray-200 dark:border-zinc-700 transition-colors print:hidden"
+              >
+                Download PDF (print)
+              </button>
+            )}
           </div>
-          <pre className="text-sm text-gray-800 dark:text-zinc-200 whitespace-pre-wrap font-mono leading-relaxed">{tailored}</pre>
+          <pre className="text-sm text-gray-800 dark:text-zinc-200 whitespace-pre-wrap font-mono leading-relaxed">
+            {tailored}
+            {tailorPhase === "writing" && <span className="animate-pulse">▍</span>}
+          </pre>
         </div>
       )}
 

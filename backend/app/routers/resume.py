@@ -2,11 +2,12 @@ import asyncio
 import io
 import uuid
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import Resume, Job, JobAnalysis
-from app.services.resume import tailor_resume
+from app.services.resume import tailor_resume, stream_tailor_resume
 
 router = APIRouter(prefix="/api/resume", tags=["resume"])
 
@@ -78,12 +79,14 @@ def tailor_for_job(job_id: str, body: TailorRequest, db: Session = Depends(get_d
 
     analysis = db.query(JobAnalysis).filter(JobAnalysis.job_id == job_id).first()
 
-    tailored = tailor_resume(
-        resume_text=resume.content,
-        job_title=job.title,
-        company=job.company,
-        job_description=job.description,
-        analysis=analysis,
-        focus=body.focus,
+    return StreamingResponse(
+        stream_tailor_resume(
+            resume_text=resume.content,
+            job_title=job.title,
+            company=job.company,
+            job_description=job.description,
+            analysis=analysis,
+            focus=body.focus,
+        ),
+        media_type="text/plain; charset=utf-8",
     )
-    return {"tailored": tailored}
