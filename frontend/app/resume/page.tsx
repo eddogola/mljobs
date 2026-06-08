@@ -47,22 +47,27 @@ export default function ResumePage() {
     xhr.upload.onprogress = (ev) => {
       if (ev.lengthComputable) setUploadProgress(Math.round((ev.loaded / ev.total) * 100));
     };
-    xhr.onload = async () => {
+    xhr.timeout = 30000;
+    xhr.onload = () => {
       if (xhr.status >= 200 && xhr.status < 300) {
         const data = JSON.parse(xhr.responseText);
         setFilename(data.filename.replace(".pdf", ""));
-        const full = await fetch(`${BASE}/api/resume`);
-        if (full.ok) { const d = await full.json(); setPasted(d.content); setResume(d); }
+        setPasted(data.content);
+        setResume({ filename: data.filename, content: data.content });
         setUploadProgress(100);
         setStatus("saved");
         setTimeout(() => { setStatus("idle"); setUploadProgress(0); }, 2000);
       } else {
-        const err = JSON.parse(xhr.responseText);
-        setErrorMsg(err.detail || "Upload failed");
+        try { setErrorMsg(JSON.parse(xhr.responseText).detail || "Upload failed"); } catch { setErrorMsg("Upload failed"); }
         setStatus("error");
         setUploadProgress(0);
       }
       if (fileRef.current) fileRef.current.value = "";
+    };
+    xhr.ontimeout = () => {
+      setErrorMsg("Request timed out — try again");
+      setStatus("error");
+      setUploadProgress(0);
     };
     xhr.onerror = () => {
       setErrorMsg("Network error during upload");

@@ -1,3 +1,4 @@
+import asyncio
 import io
 import uuid
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
@@ -31,20 +32,29 @@ def get_resume(db: Session = Depends(get_db)):
 async def upload_pdf(file: UploadFile = File(...), db: Session = Depends(get_db)):
     if not file.filename or not file.filename.endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only PDF files are accepted")
-    try:
+
+    data = await file.read()
+
+    def extract(raw: bytes) -> str:
         from pypdf import PdfReader
-        data = await file.read()
-        reader = PdfReader(io.BytesIO(data))
-        text = "\n\n".join(page.extract_text() or "" for page in reader.pages).strip()
+        reader = PdfReader(io.BytesIO(raw))
+        return "\n\n".join(page.extract_text() or "" for page in reader.pages).strip()
+
+    try:
+        # Run in thread pool so it doesn't block the async event loop
+        text = await asyncio.get_event_loop().run_in_executor(None, extract, data)
     except Exception as e:
         raise HTTPException(status_code=422, detail=f"Could not parse PDF: {e}")
+
     if not text:
-        raise HTTPException(status_code=422, detail="PDF appears to have no extractable text (try a text-based PDF, not a scan)")
+        raise HTTPException(status_code=422, detail="PDF has no extractable text — use a text-based PDF, not a scan")
+
     resume = Resume(id=str(uuid.uuid4()), filename=file.filename, content=text)
     db.add(resume)
     db.commit()
     db.refresh(resume)
-    return {"id": resume.id, "filename": resume.filename, "created_at": resume.created_at, "preview": text[:300]}
+    # Return full content so the frontend doesn't need a second round-trip
+    return {"id": resume.id, "filename": resume.filename, "content": text, "created_at": resume.created_at}
 
 
 @router.post("")
