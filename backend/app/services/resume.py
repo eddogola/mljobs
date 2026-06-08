@@ -26,7 +26,7 @@ RULES:
 2. NO SUMMARY — Do not include a professional summary or objective statement.
 3. KEYWORDS FIRST — Weave the JD's exact keywords, phrases, and terminology into every bullet point where they truthfully apply. Mirror the JD's language throughout.
 4. REWRITE BULLETS — Transform generic bullets into achievement-focused, keyword-rich statements. Lead with strong action verbs. Quantify wherever possible.
-5. SKILLS SECTION — List all JD keywords the candidate genuinely has, grouped by category (Languages, Frameworks, Infrastructure, etc.).
+5. SKILLS SECTION — One flat comma-separated line of skills, no categories, no sub-headers. Bold only the skills that directly match this role's must-haves. Keep it short — 10-15 skills max.
 6. ONE PAGE — Keep total content to one page (~450-550 words). Cut low-impact bullets ruthlessly to stay within this limit.
 7. TRUTH — Do not fabricate experience, metrics, or skills. Reframe and reword aggressively, but never invent.
 
