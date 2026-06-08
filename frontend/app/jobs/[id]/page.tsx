@@ -20,6 +20,15 @@ export default function JobPage({ params }: { params: Promise<{ id: string }> })
   const [tailored, setTailored] = useState<string | null>(null);
   const [tailorPhase, setTailorPhase] = useState<"idle" | "connecting" | "writing" | "done">("idle");
   const tailoredRef = useRef<HTMLDivElement>(null);
+  const hasScrolled = useRef(false);
+
+  useEffect(() => {
+    if (tailorPhase === "writing" && tailored && !hasScrolled.current) {
+      hasScrolled.current = true;
+      tailoredRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+    if (tailorPhase === "idle") hasScrolled.current = false;
+  }, [tailored, tailorPhase]);
 
   async function tailorResume() {
     setTailoring(true);
@@ -41,7 +50,6 @@ export default function JobPage({ params }: { params: Promise<{ id: string }> })
     }
 
     setTailorPhase("writing");
-    tailoredRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     const reader = r.body!.getReader();
     const decoder = new TextDecoder();
     let full = "";
