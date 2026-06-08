@@ -12,81 +12,32 @@ def _strip_html(text: str) -> str:
     return re.sub(r"[ \t]+", " ", text).strip()
 
 
-def tailor_resume(
-    resume_text: str,
-    job_title: str,
-    company: str,
-    job_description: str,
-    analysis=None,
-    focus: str | None = None,
-) -> str:
-    clean_jd = _strip_html(job_description)[:6000]
+def _build_prompt(job_title: str, company: str, clean_jd: str, must_haves: list[str], focus: str | None, resume_text: str) -> str:
+    must_have_str = ", ".join(must_haves[:25]) if must_haves else "see JD below"
+    focus_hint = f"\n\nExtra instruction: {focus}" if focus else ""
 
-    must_haves = []
-    if analysis:
-        must_haves = (analysis.must_have_technical or []) + (analysis.must_have_non_technical or [])
+    return f"""You are an aggressive, results-driven resume writer specialising in ML/AI engineering roles. Your job is to maximise interview callback rate by making the resume speak the exact language of the job description.
 
-    skills_hint = f"\nKey requirements extracted from JD: {', '.join(must_haves[:20])}" if must_haves else ""
-    focus_hint = f"\nExtra instruction from user: {focus}" if focus else ""
+TARGET ROLE: {job_title} at {company}
+MUST-HAVE KEYWORDS FROM JD: {must_have_str}{focus_hint}
 
-    prompt = f"""You are an expert resume writer specialising in ML/AI engineering roles.
+RULES:
+1. KEYWORDS FIRST — Weave the JD's exact keywords, phrases, and terminology into every bullet point where they truthfully apply. If the JD says "distributed training at scale", use that phrase if the candidate has done it. Mirror the JD's language throughout.
+2. SUMMARY — Write a punchy 2-3 sentence professional summary at the top that directly addresses this specific role and company, using their exact language.
+3. REWRITE BULLETS — Transform generic bullets into achievement-focused, keyword-rich statements. Lead with strong action verbs. Quantify wherever possible. Every bullet should signal relevance to this role.
+4. SKILLS SECTION — Create a dedicated Technical Skills section listing all JD keywords the candidate genuinely has, grouped by category (Languages, Frameworks, Infrastructure, etc.).
+5. REORDER — Put the most relevant experience and projects first. Cut or minimise anything irrelevant to this role.
+6. TRUTH — Do not fabricate experience, metrics, or skills. Only use what's in the resume. Reframe and reword aggressively, but never invent.
 
-Tailor the resume below for the following role. Preserve every factual claim — do not invent experience, metrics, or skills the candidate doesn't have. Only reorder, reword, and emphasise what's already there to best match the job requirements.
-
-Target role: {job_title} at {company}{skills_hint}{focus_hint}
-
-Job description (first 6000 chars):
+JOB DESCRIPTION:
 {clean_jd}
 
 ---
-RESUME:
+ORIGINAL RESUME:
 {resume_text}
 ---
 
-Return the tailored resume in clean markdown. Use ## for section headers. Keep it to one page of content (roughly 500-700 words). Do not add any commentary — only the resume."""
-
-    return _build_prompt(job_title, company, clean_jd, skills_hint, focus_hint, resume_text)
-
-
-def _build_prompt(job_title, company, clean_jd, skills_hint, focus_hint, resume_text) -> str:
-    return f"""You are an expert resume writer specialising in ML/AI engineering roles.
-
-Tailor the resume below for the following role. Preserve every factual claim — do not invent experience, metrics, or skills the candidate doesn't have. Only reorder, reword, and emphasise what's already there to best match the job requirements.
-
-Target role: {job_title} at {company}{skills_hint}{focus_hint}
-
-Job description (first 6000 chars):
-{clean_jd}
-
----
-RESUME:
-{resume_text}
----
-
-Return the tailored resume in clean markdown. Use ## for section headers. Keep it to one page of content (roughly 500-700 words). Do not add any commentary — only the resume."""
-
-
-def tailor_resume(
-    resume_text: str,
-    job_title: str,
-    company: str,
-    job_description: str,
-    analysis=None,
-    focus: str | None = None,
-) -> str:
-    clean_jd = _strip_html(job_description)[:6000]
-    must_haves = []
-    if analysis:
-        must_haves = (analysis.must_have_technical or []) + (analysis.must_have_non_technical or [])
-    skills_hint = f"\nKey requirements extracted from JD: {', '.join(must_haves[:20])}" if must_haves else ""
-    focus_hint = f"\nExtra instruction from user: {focus}" if focus else ""
-    prompt = _build_prompt(job_title, company, clean_jd, skills_hint, focus_hint, resume_text)
-    message = client.messages.create(
-        model="claude-sonnet-4-6",
-        max_tokens=2048,
-        messages=[{"role": "user", "content": prompt}],
-    )
-    return message.content[0].text.strip()
+Return ONLY the tailored resume in clean markdown. Use ## for section headers. No commentary, no explanation, no preamble."""
 
 
 def stream_tailor_resume(
@@ -101,9 +52,7 @@ def stream_tailor_resume(
     must_haves = []
     if analysis:
         must_haves = (analysis.must_have_technical or []) + (analysis.must_have_non_technical or [])
-    skills_hint = f"\nKey requirements extracted from JD: {', '.join(must_haves[:20])}" if must_haves else ""
-    focus_hint = f"\nExtra instruction from user: {focus}" if focus else ""
-    prompt = _build_prompt(job_title, company, clean_jd, skills_hint, focus_hint, resume_text)
+    prompt = _build_prompt(job_title, company, clean_jd, must_haves, focus, resume_text)
     with client.messages.stream(
         model="claude-sonnet-4-6",
         max_tokens=2048,
@@ -111,3 +60,24 @@ def stream_tailor_resume(
     ) as stream:
         for text in stream.text_stream:
             yield text
+
+
+def tailor_resume(
+    resume_text: str,
+    job_title: str,
+    company: str,
+    job_description: str,
+    analysis=None,
+    focus: str | None = None,
+) -> str:
+    clean_jd = _strip_html(job_description)[:6000]
+    must_haves = []
+    if analysis:
+        must_haves = (analysis.must_have_technical or []) + (analysis.must_have_non_technical or [])
+    prompt = _build_prompt(job_title, company, clean_jd, must_haves, focus, resume_text)
+    message = client.messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=2048,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    return message.content[0].text.strip()
