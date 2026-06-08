@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useEffect, useState } from "react";
+import { use, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import useSWR from "swr";
 import AnalysisPanel from "@/components/AnalysisPanel";
@@ -19,6 +19,7 @@ export default function JobPage({ params }: { params: Promise<{ id: string }> })
   const [tailoring, setTailoring] = useState(false);
   const [tailored, setTailored] = useState<string | null>(null);
   const [tailorPhase, setTailorPhase] = useState<"idle" | "connecting" | "writing" | "done">("idle");
+  const tailoredRef = useRef<HTMLDivElement>(null);
 
   async function tailorResume() {
     setTailoring(true);
@@ -40,6 +41,7 @@ export default function JobPage({ params }: { params: Promise<{ id: string }> })
     }
 
     setTailorPhase("writing");
+    tailoredRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     const reader = r.body!.getReader();
     const decoder = new TextDecoder();
     let full = "";
@@ -199,8 +201,8 @@ export default function JobPage({ params }: { params: Promise<{ id: string }> })
 
       {/* Tailored resume output */}
       {(tailored !== null && tailored !== "") && (
-        <div className="mt-4 border border-gray-200 dark:border-zinc-800 rounded-lg p-5">
-          <div className="flex items-center justify-between mb-4">
+        <div ref={tailoredRef} className="mt-4 border border-gray-200 dark:border-zinc-800 rounded-lg p-5">
+          <div className="flex items-center justify-between mb-4 print:hidden">
             <div className="flex items-center gap-2">
               <h2 className="text-sm font-semibold text-gray-700 dark:text-zinc-300">Tailored Resume</h2>
               {tailorPhase === "writing" && (
@@ -216,7 +218,7 @@ export default function JobPage({ params }: { params: Promise<{ id: string }> })
               </button>
             )}
           </div>
-          <pre className="text-sm text-gray-800 dark:text-zinc-200 whitespace-pre-wrap font-mono leading-relaxed">
+          <pre className="text-sm text-gray-800 dark:text-zinc-200 whitespace-pre-wrap font-mono leading-relaxed print-area">
             {tailored}
             {tailorPhase === "writing" && <span className="animate-pulse">▍</span>}
           </pre>
