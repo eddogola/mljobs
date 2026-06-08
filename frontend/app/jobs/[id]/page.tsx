@@ -8,23 +8,28 @@ import ThemeToggle from "@/components/ThemeToggle";
 import SavedPanel from "@/components/SavedPanel";
 import { fetchJob } from "@/lib/api";
 import { timeAgo, remoteLabel, sourceLabel } from "@/lib/utils";
-import { saveJob, unsaveJob, isJobSaved } from "@/lib/saved";
+import { saveJob, unsaveJob, isJobSaved, fetchSavedJobs } from "@/lib/saved";
 
 export default function JobPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const { data: job, isLoading, error } = useSWR(id, () => fetchJob(id));
   const [saved, setSaved] = useState(false);
 
-  useEffect(() => { setSaved(isJobSaved(id)); }, [id]);
+  useEffect(() => {
+    setSaved(isJobSaved(id));           // instant from cache
+    fetchSavedJobs().then((jobs) => {   // then verify against server
+      setSaved(jobs.some((j) => j.job_id === id));
+    });
+  }, [id]);
 
-  function toggleSave() {
+  async function toggleSave() {
     if (!job) return;
     if (saved) {
-      unsaveJob(id);
       setSaved(false);
+      await unsaveJob(id);
     } else {
-      saveJob({ id, title: job.title, company: job.company, url: job.url, savedAt: new Date().toISOString() });
       setSaved(true);
+      await saveJob({ job_id: id, title: job.title, company: job.company, url: job.url });
     }
   }
 
@@ -96,6 +101,37 @@ export default function JobPage({ params }: { params: Promise<{ id: string }> })
           </div>
         </div>
       </div>
+
+      {/* Team / outreach */}
+      {job.analysis && (job.analysis.team_name || job.analysis.hiring_manager) && (
+        <div className="border border-gray-200 dark:border-zinc-800 rounded-lg p-5 mb-4">
+          <h2 className="text-sm font-semibold text-gray-700 dark:text-zinc-300 mb-3">Team & Outreach</h2>
+          <div className="flex flex-wrap items-center gap-4">
+            {job.analysis.team_name && (
+              <div>
+                <p className="text-xs text-gray-400 dark:text-zinc-500 mb-0.5">Team / Org</p>
+                <p className="text-sm font-medium text-gray-800 dark:text-zinc-200">{job.analysis.team_name}</p>
+              </div>
+            )}
+            {job.analysis.hiring_manager && (
+              <div>
+                <p className="text-xs text-gray-400 dark:text-zinc-500 mb-0.5">Hiring Manager</p>
+                <p className="text-sm font-medium text-gray-800 dark:text-zinc-200">{job.analysis.hiring_manager}</p>
+              </div>
+            )}
+            <a
+              href={`https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(
+                [job.analysis.team_name, job.company].filter(Boolean).join(" ")
+              )}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="ml-auto text-xs bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/40 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800 px-3 py-1.5 rounded transition-colors"
+            >
+              Find team on LinkedIn →
+            </a>
+          </div>
+        </div>
+      )}
 
       {/* Analysis */}
       {job.analysis ? (

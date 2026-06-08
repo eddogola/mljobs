@@ -30,6 +30,8 @@ export interface JobAnalysis {
   must_have_non_technical: string[];
   nice_to_have_technical: string[];
   tech_stack: TechStack | null;
+  team_name: string | null;
+  hiring_manager: string | null;
   domain_knowledge: string[];
   interview_topics: string[];
   experience_signals: string[];

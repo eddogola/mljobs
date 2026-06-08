@@ -1,5 +1,5 @@
 from datetime import datetime
-from sqlalchemy import Column, String, Text, DateTime, JSON, ForeignKey, Integer
+from sqlalchemy import Column, String, Text, DateTime, JSON, ForeignKey, Integer, UniqueConstraint
 from sqlalchemy.orm import relationship
 from app.database import Base
 
@@ -33,6 +33,8 @@ class JobAnalysis(Base):
     must_have_non_technical = Column(JSON)
     nice_to_have_technical = Column(JSON)
     tech_stack = Column(JSON)        # {frameworks, infra, languages, tools}
+    team_name = Column(String)
+    hiring_manager = Column(String)
     domain_knowledge = Column(JSON)   # kept for backwards compat
     core_concepts = Column(JSON)       # replaces domain_knowledge going forward
     interview_topics = Column(JSON)
@@ -41,3 +43,30 @@ class JobAnalysis(Base):
     parsed_at = Column(DateTime, default=datetime.utcnow)
 
     job = relationship("Job", back_populates="analysis")
+
+
+class SavedJob(Base):
+    __tablename__ = "saved_jobs"
+
+    job_id = Column(String, primary_key=True)
+    title = Column(String, nullable=False)
+    company = Column(String, nullable=False)
+    url = Column(String, nullable=False)
+    position = Column(Integer, default=0)   # lower = higher priority
+    saved_at = Column(DateTime, default=datetime.utcnow)
+
+
+class SavedSkill(Base):
+    __tablename__ = "saved_skills"
+
+    skill = Column(String, primary_key=True)
+    category = Column(String, nullable=False)
+    skill_position = Column(Integer, default=0)    # order within category
+    saved_at = Column(DateTime, default=datetime.utcnow)
+
+
+class SavedSectionOrder(Base):
+    __tablename__ = "saved_section_order"
+
+    category = Column(String, primary_key=True)
+    position = Column(Integer, default=0)

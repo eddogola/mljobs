@@ -19,6 +19,8 @@ class JobAnalysisSchema(BaseModel):
     must_have_non_technical: list[str] = []
     nice_to_have_technical: list[str] = []
     tech_stack: Optional[TechStack]
+    team_name: Optional[str] = None
+    hiring_manager: Optional[str] = None
     domain_knowledge: list[str] = []
     interview_topics: list[str] = []
     experience_signals: list[str] = []

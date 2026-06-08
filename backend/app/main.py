@@ -6,9 +6,11 @@ from contextlib import asynccontextmanager
 from apscheduler.schedulers.background import BackgroundScheduler
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
 from app.database import SessionLocal, engine, Base
-from app.models import Job, JobAnalysis  # noqa: F401 — register models with Base
+from app.models import Job, JobAnalysis, SavedJob, SavedSkill, SavedSectionOrder  # noqa: F401
 from app.routers.jobs import router as jobs_router
+from app.routers.saved import router as saved_router
 from app.workers.ingest import run_ingestion, run_parser
 
 logging.basicConfig(
@@ -21,6 +23,10 @@ logger = logging.getLogger(__name__)
 def ensure_tables() -> None:
     logger.info("[startup 1/4] Creating tables if not exist...")
     Base.metadata.create_all(bind=engine)
+    with engine.connect() as conn:
+        conn.execute(text("ALTER TABLE job_analysis ADD COLUMN IF NOT EXISTS team_name VARCHAR"))
+        conn.execute(text("ALTER TABLE job_analysis ADD COLUMN IF NOT EXISTS hiring_manager VARCHAR"))
+        conn.commit()
     logger.info("[startup 1/4] Tables ready")
 
 
@@ -73,6 +79,7 @@ app.add_middleware(
 )
 
 app.include_router(jobs_router)
+app.include_router(saved_router)
 
 
 @app.get("/health")
