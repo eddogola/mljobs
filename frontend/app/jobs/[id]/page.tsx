@@ -10,10 +10,31 @@ import { fetchJob } from "@/lib/api";
 import { timeAgo, remoteLabel, sourceLabel } from "@/lib/utils";
 import { saveJob, unsaveJob, isJobSaved, fetchSavedJobs } from "@/lib/saved";
 
+const BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
 export default function JobPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const { data: job, isLoading, error } = useSWR(id, () => fetchJob(id));
   const [saved, setSaved] = useState(false);
+  const [tailoring, setTailoring] = useState(false);
+  const [tailored, setTailored] = useState<string | null>(null);
+
+  async function tailorResume() {
+    setTailoring(true);
+    setTailored(null);
+    const r = await fetch(`${BASE}/api/resume/tailor/${id}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    if (r.ok) {
+      const data = await r.json();
+      setTailored(data.tailored);
+    } else if (r.status === 404) {
+      alert("Upload your resume first at /resume");
+    }
+    setTailoring(false);
+  }
 
   useEffect(() => {
     setSaved(isJobSaved(id));           // instant from cache
@@ -90,6 +111,13 @@ export default function JobPage({ params }: { params: Promise<{ id: string }> })
                 <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
               </svg>
             </button>
+            <button
+              onClick={tailorResume}
+              disabled={tailoring}
+              className="text-sm bg-gray-100 dark:bg-zinc-800 hover:bg-gray-200 dark:hover:bg-zinc-700 text-gray-700 dark:text-zinc-200 px-3 py-2 rounded border border-gray-200 dark:border-zinc-700 transition-colors disabled:opacity-50"
+            >
+              {tailoring ? "Tailoring…" : "Tailor resume"}
+            </button>
             <a
               href={job.url}
               target="_blank"
@@ -146,6 +174,22 @@ export default function JobPage({ params }: { params: Promise<{ id: string }> })
               ? "Analysis is pending — check back shortly."
               : "Analysis could not be generated for this job."}
           </p>
+        </div>
+      )}
+
+      {/* Tailored resume output */}
+      {tailored && (
+        <div className="mt-4 border border-gray-200 dark:border-zinc-800 rounded-lg p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-sm font-semibold text-gray-700 dark:text-zinc-300">Tailored Resume</h2>
+            <button
+              onClick={() => window.print()}
+              className="text-xs bg-gray-100 dark:bg-zinc-800 hover:bg-gray-200 dark:hover:bg-zinc-700 text-gray-600 dark:text-zinc-300 px-3 py-1.5 rounded border border-gray-200 dark:border-zinc-700 transition-colors print:hidden"
+            >
+              Download PDF (print)
+            </button>
+          </div>
+          <pre className="text-sm text-gray-800 dark:text-zinc-200 whitespace-pre-wrap font-mono leading-relaxed">{tailored}</pre>
         </div>
       )}
 

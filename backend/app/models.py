@@ -1,5 +1,5 @@
 from datetime import datetime
-from sqlalchemy import Column, String, Text, DateTime, JSON, ForeignKey, Integer, UniqueConstraint
+from sqlalchemy import Column, String, Text, DateTime, JSON, ForeignKey, Integer, Boolean, UniqueConstraint
 from sqlalchemy.orm import relationship
 from app.database import Base
 
@@ -65,8 +65,54 @@ class SavedSkill(Base):
     saved_at = Column(DateTime, default=datetime.utcnow)
 
 
+class SkillConfidenceEntry(Base):
+    __tablename__ = "skill_confidence_log"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    skill = Column(String, ForeignKey("saved_skills.skill", ondelete="CASCADE"), nullable=False, index=True)
+    value = Column(Integer, nullable=False)  # 1-5
+    recorded_at = Column(DateTime, default=datetime.utcnow)
+
+
+class PrepResource(Base):
+    __tablename__ = "prep_resources"
+
+    id = Column(String, primary_key=True)
+    title = Column(String, nullable=False)
+    url = Column(String, nullable=False)
+    resource_type = Column(String)   # Article | Video | Course | Practice | Other
+    notes = Column(Text)
+    skills = Column(JSON)            # list[str] of skill tags
+    completed = Column(Boolean, default=False)
+    position = Column(Integer, default=0)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 class SavedSectionOrder(Base):
     __tablename__ = "saved_section_order"
 
     category = Column(String, primary_key=True)
     position = Column(Integer, default=0)
+
+
+class Resume(Base):
+    __tablename__ = "resumes"
+
+    id = Column(String, primary_key=True)
+    filename = Column(String, nullable=False)
+    content = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class Recruiter(Base):
+    __tablename__ = "recruiters"
+
+    id = Column(String, primary_key=True)
+    name = Column(String, nullable=False)
+    company = Column(String)
+    email = Column(String)
+    linkedin_url = Column(String)
+    notes = Column(Text)
+    tags = Column(JSON, default=list)
+    last_contacted = Column(DateTime)
+    created_at = Column(DateTime, default=datetime.utcnow)

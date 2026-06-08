@@ -8,9 +8,12 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 from app.database import SessionLocal, engine, Base
-from app.models import Job, JobAnalysis, SavedJob, SavedSkill, SavedSectionOrder  # noqa: F401
+from app.models import Job, JobAnalysis, SavedJob, SavedSkill, SavedSectionOrder, SkillConfidenceEntry, PrepResource, Resume, Recruiter  # noqa: F401
 from app.routers.jobs import router as jobs_router
 from app.routers.saved import router as saved_router
+from app.routers.prep import router as prep_router
+from app.routers.resume import router as resume_router
+from app.routers.recruiters import router as recruiters_router
 from app.workers.ingest import run_ingestion, run_parser
 
 logging.basicConfig(
@@ -80,6 +83,9 @@ app.add_middleware(
 
 app.include_router(jobs_router)
 app.include_router(saved_router)
+app.include_router(prep_router)
+app.include_router(resume_router)
+app.include_router(recruiters_router)
 
 
 @app.get("/health")

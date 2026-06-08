@@ -290,6 +290,14 @@ def get_job(job_id: str, db: Session = Depends(get_db)):
     return JobSchema.model_validate(job)
 
 
+@router.post("/admin/reparse")
+def reset_parse_status(db: Session = Depends(get_db)):
+    count = db.query(Job).update({"parse_status": "unparsed"}, synchronize_session=False)
+    db.query(JobAnalysis).delete(synchronize_session=False)
+    db.commit()
+    return {"reset": count}
+
+
 @router.post("/admin/ingest")
 def trigger_ingestion(background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     def _run():

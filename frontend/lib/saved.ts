@@ -1,11 +1,14 @@
 "use client";
 
+const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+const TOKEN = process.env.NEXT_PUBLIC_PERSONAL_TOKEN ?? "";
+
 export interface SavedJob {
-  id: string;
+  job_id: string;
   title: string;
   company: string;
   url: string;
-  savedAt: string;
+  saved_at: string;
 }
 
 export interface SavedSkill {
@@ -13,109 +16,179 @@ export interface SavedSkill {
   category: string;
 }
 
-const JOBS_KEY = "joblens_saved_jobs";
-const SKILLS_KEY = "joblens_saved_skills";
+// ── Local cache keys (used for instant reads while API is in-flight) ──────────
+
+const JOBS_CACHE = "joblens_saved_jobs";
+const SKILLS_CACHE = "joblens_saved_skills";
+const SECTION_ORDER_CACHE = "joblens_section_order";
+
+function headers() {
+  const h: HeadersInit = { "Content-Type": "application/json" };
+  if (TOKEN) h["x-personal-token"] = TOKEN;
+  return h;
+}
 
 function notify() {
   window.dispatchEvent(new Event("joblens:saved"));
 }
 
-// --- Jobs ---
+// ── Jobs ──────────────────────────────────────────────────────────────────────
 
-export function getSavedJobs(): SavedJob[] {
-  try {
-    return JSON.parse(localStorage.getItem(JOBS_KEY) ?? "[]");
-  } catch {
-    return [];
-  }
+export function getCachedJobs(): SavedJob[] {
+  try { return JSON.parse(localStorage.getItem(JOBS_CACHE) ?? "[]"); }
+  catch { return []; }
 }
 
-export function saveJob(job: SavedJob): void {
-  const jobs = getSavedJobs().filter((j) => j.id !== job.id);
-  localStorage.setItem(JOBS_KEY, JSON.stringify([job, ...jobs]));
+export async function fetchSavedJobs(): Promise<SavedJob[]> {
+  const res = await fetch(`${BASE}/api/saved/jobs`, { headers: headers() });
+  if (!res.ok) return getCachedJobs();
+  const data: SavedJob[] = await res.json();
+  localStorage.setItem(JOBS_CACHE, JSON.stringify(data));
+  return data;
+}
+
+export async function saveJob(job: Omit<SavedJob, "saved_at">): Promise<void> {
+  // Optimistic: update cache immediately
+  const current = getCachedJobs().filter((j) => j.job_id !== job.job_id);
+  localStorage.setItem(JOBS_CACHE, JSON.stringify([{ ...job, saved_at: new Date().toISOString() }, ...current]));
   notify();
+  await fetch(`${BASE}/api/saved/jobs`, {
+    method: "POST",
+    headers: headers(),
+    body: JSON.stringify(job),
+  });
 }
 
-export function unsaveJob(id: string): void {
-  const jobs = getSavedJobs().filter((j) => j.id !== id);
-  localStorage.setItem(JOBS_KEY, JSON.stringify(jobs));
+export async function unsaveJob(job_id: string): Promise<void> {
+  // Optimistic
+  const current = getCachedJobs().filter((j) => j.job_id !== job_id);
+  localStorage.setItem(JOBS_CACHE, JSON.stringify(current));
   notify();
+  await fetch(`${BASE}/api/saved/jobs/${encodeURIComponent(job_id)}`, {
+    method: "DELETE",
+    headers: headers(),
+  });
 }
 
-export function isJobSaved(id: string): boolean {
-  return getSavedJobs().some((j) => j.id === id);
+export function isJobSaved(job_id: string): boolean {
+  return getCachedJobs().some((j) => j.job_id === job_id);
 }
 
-// --- Skills ---
+// ── Skills ────────────────────────────────────────────────────────────────────
 
-export function getSavedSkills(): SavedSkill[] {
+export function getCachedSkills(): SavedSkill[] {
   try {
-    const raw = JSON.parse(localStorage.getItem(SKILLS_KEY) ?? "[]");
-    // Migrate old flat string[] format — write back so migration only runs once
+    const raw = JSON.parse(localStorage.getItem(SKILLS_CACHE) ?? "[]");
+    // Migrate old flat string[] format
     if (raw.length > 0 && typeof raw[0] === "string") {
-      const migrated = (raw as string[]).map((s) => ({ skill: s, category: "Other Concepts" }));
-      localStorage.setItem(SKILLS_KEY, JSON.stringify(migrated));
-      return migrated;
+      return (raw as string[]).map((s) => ({ skill: s, category: "Other Concepts" }));
     }
     return raw as SavedSkill[];
-  } catch {
-    return [];
+  } catch { return []; }
+}
+
+export async function fetchSavedSkills(): Promise<{ skills: SavedSkill[]; section_order: Record<string, number> }> {
+  const res = await fetch(`${BASE}/api/saved/skills`, { headers: headers() });
+  if (!res.ok) {
+    return { skills: getCachedSkills(), section_order: getCachedSectionOrder() };
   }
+  const data = await res.json();
+  localStorage.setItem(SKILLS_CACHE, JSON.stringify(data.skills));
+  localStorage.setItem(SECTION_ORDER_CACHE, JSON.stringify(data.section_order));
+  return data;
 }
 
-export function saveSkill(skill: string, category: string): void {
-  const skills = getSavedSkills().filter((s) => s.skill !== skill);
-  localStorage.setItem(SKILLS_KEY, JSON.stringify([{ skill, category }, ...skills]));
+export async function saveSkill(skill: string, category: string): Promise<void> {
+  const current = getCachedSkills().filter((s) => s.skill !== skill);
+  localStorage.setItem(SKILLS_CACHE, JSON.stringify([{ skill, category }, ...current]));
   notify();
+  await fetch(`${BASE}/api/saved/skills`, {
+    method: "POST",
+    headers: headers(),
+    body: JSON.stringify({ skill, category }),
+  });
 }
 
-export function unsaveSkill(skill: string): void {
-  const skills = getSavedSkills().filter((s) => s.skill !== skill);
-  localStorage.setItem(SKILLS_KEY, JSON.stringify(skills));
+export async function unsaveSkill(skill: string): Promise<void> {
+  const current = getCachedSkills().filter((s) => s.skill !== skill);
+  localStorage.setItem(SKILLS_CACHE, JSON.stringify(current));
   notify();
+  await fetch(`${BASE}/api/saved/skills/${encodeURIComponent(skill)}`, {
+    method: "DELETE",
+    headers: headers(),
+  });
 }
 
 export function isSkillSaved(skill: string): boolean {
-  return getSavedSkills().some((s) => s.skill === skill);
+  return getCachedSkills().some((s) => s.skill === skill);
 }
 
-// Section order
+// ── Skill confidence ──────────────────────────────────────────────────────────
 
-const SECTION_ORDER_KEY = "joblens_section_order";
-
-export function getSectionOrder(): string[] {
-  try {
-    return JSON.parse(localStorage.getItem(SECTION_ORDER_KEY) ?? "[]");
-  } catch {
-    return [];
-  }
+export interface ConfidenceEntry {
+  value: number;       // 1-5
+  recorded_at: string;
 }
 
-export function setSectionOrder(order: string[]): void {
-  localStorage.setItem(SECTION_ORDER_KEY, JSON.stringify(order));
-  window.dispatchEvent(new Event("joblens:saved"));
+export async function logSkillConfidence(skill: string, value: number): Promise<void> {
+  await fetch(`${BASE}/api/saved/skills/${encodeURIComponent(skill)}/confidence`, {
+    method: "POST",
+    headers: headers(),
+    body: JSON.stringify({ value }),
+  });
 }
 
-// Reorder skills within a category — moves skill at oldIdx to newIdx, preserves other categories
-export function reorderSkillsInCategory(category: string, oldIdx: number, newIdx: number): void {
-  const all = getSavedSkills();
-  // Find the positions of skills in this category within the full array
-  const catPositions = all.reduce<number[]>((acc, s, i) => {
-    if (s.category === category) acc.push(i);
-    return acc;
-  }, []);
+export async function fetchSkillConfidenceHistory(skill: string): Promise<ConfidenceEntry[]> {
+  const res = await fetch(`${BASE}/api/saved/skills/${encodeURIComponent(skill)}/confidence`, { headers: headers() });
+  if (!res.ok) return [];
+  return res.json();
+}
 
-  if (oldIdx >= catPositions.length || newIdx >= catPositions.length) return;
+export async function fetchAllConfidenceHistory(): Promise<Record<string, ConfidenceEntry[]>> {
+  const res = await fetch(`${BASE}/api/saved/skills/confidence`, { headers: headers() });
+  if (!res.ok) return {};
+  return res.json();
+}
 
-  // Build the reordered category slice
-  const catSkills = catPositions.map((i) => all[i]);
+// ── Section order ─────────────────────────────────────────────────────────────
+
+export function getCachedSectionOrder(): Record<string, number> {
+  try { return JSON.parse(localStorage.getItem(SECTION_ORDER_CACHE) ?? "{}"); }
+  catch { return {}; }
+}
+
+export function getCachedSectionOrderArray(): string[] {
+  const map = getCachedSectionOrder();
+  return Object.entries(map).sort((a, b) => a[1] - b[1]).map(([k]) => k);
+}
+
+export async function setSectionOrder(categories: string[]): Promise<void> {
+  const map = Object.fromEntries(categories.map((c, i) => [c, i]));
+  localStorage.setItem(SECTION_ORDER_CACHE, JSON.stringify(map));
+  notify();
+  await fetch(`${BASE}/api/saved/sections/reorder`, {
+    method: "PUT",
+    headers: headers(),
+    body: JSON.stringify({ categories }),
+  });
+}
+
+// ── Skill reorder within category ─────────────────────────────────────────────
+
+export async function reorderSkillsInCategory(category: string, oldIdx: number, newIdx: number): Promise<void> {
+  const skills = getCachedSkills();
+  const catSkills = skills.filter((s) => s.category === category);
   const [moved] = catSkills.splice(oldIdx, 1);
   catSkills.splice(newIdx, 0, moved);
 
-  // Put them back into the full array at the same positions
-  const updated = [...all];
-  catPositions.forEach((pos, i) => { updated[pos] = catSkills[i]; });
+  // Rebuild full list preserving other categories' order
+  const otherSkills = skills.filter((s) => s.category !== category);
+  localStorage.setItem(SKILLS_CACHE, JSON.stringify([...otherSkills, ...catSkills]));
+  notify();
 
-  localStorage.setItem("joblens_saved_skills", JSON.stringify(updated));
-  window.dispatchEvent(new Event("joblens:saved"));
+  await fetch(`${BASE}/api/saved/skills/reorder`, {
+    method: "PUT",
+    headers: headers(),
+    body: JSON.stringify({ category, skills: catSkills.map((s) => s.skill) }),
+  });
 }

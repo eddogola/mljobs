@@ -44,11 +44,6 @@ IMPORTANT: All list items must be short concept/skill names (1-5 words). Never f
     "evaluation (MMLU, HumanEval, scaling laws, benchmark construction, evals).",
     "Use short names: 'Mechanistic interpretability', 'Sparse autoencoders', 'KV cache', 'LoRA'"
   ],
-  "interview_topics": [
-    "Specific, technical likely interview questions — be concrete.",
-    "e.g. 'How does KV cache work and what are its memory tradeoffs?'",
-    "e.g. 'Walk through how you'd train a sparse autoencoder on residual stream activations'"
-  ],
   "team_name": "name of the specific team or org hiring (e.g. 'Frontier Safety', 'ML Platform', 'Core Research') — null if not clear",
   "hiring_manager": "full name of the hiring manager if explicitly mentioned in the JD — null if not mentioned",
   "experience_signals": ["phrases from the JD that signal seniority level"],

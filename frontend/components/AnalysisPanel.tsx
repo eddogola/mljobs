@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { JobAnalysis } from "@/lib/api";
 import { DOMAIN_COLORS } from "@/lib/utils";
 import { groupConcepts } from "@/lib/conceptCategories";
-import { saveSkill, unsaveSkill, getSavedSkills } from "@/lib/saved";
+import { saveSkill, unsaveSkill, getCachedSkills, fetchSavedSkills } from "@/lib/saved";
 
 function Tag({ text, variant = "default" }: { text: string; variant?: "must" | "nice" | "domain" | "default" | "warn" }) {
   const cls = {
@@ -30,19 +30,21 @@ export default function AnalysisPanel({ analysis }: { analysis: JobAnalysis }) {
   const [savedSkills, setSavedSkills] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    const load = () => setSavedSkills(new Set(getSavedSkills().map((s) => s.skill)));
+    const load = () => setSavedSkills(new Set(getCachedSkills().map((s) => s.skill)));
     load();
+    fetchSavedSkills().then(({ skills }) => setSavedSkills(new Set(skills.map((s) => s.skill))));
     window.addEventListener("joblens:saved", load);
     return () => window.removeEventListener("joblens:saved", load);
   }, []);
 
   function toggleSkill(skill: string, category: string) {
     if (savedSkills.has(skill)) {
+      setSavedSkills((prev) => { const n = new Set(prev); n.delete(skill); return n; });
       unsaveSkill(skill);
     } else {
+      setSavedSkills((prev) => new Set(prev).add(skill));
       saveSkill(skill, category);
     }
-    setSavedSkills(new Set(getSavedSkills().map((s) => s.skill)));
   }
 
   const domainCls = analysis.ml_domain
@@ -164,19 +166,6 @@ export default function AnalysisPanel({ analysis }: { analysis: JobAnalysis }) {
               </div>
             ))}
           </div>
-        </Section>
-      )}
-
-      {analysis.interview_topics.length > 0 && (
-        <Section title="Likely Interview Topics">
-          <ul className="space-y-2">
-            {analysis.interview_topics.map((t, i) => (
-              <li key={i} className="text-sm text-gray-800 dark:text-zinc-200 flex gap-2 bg-gray-50 dark:bg-zinc-900/60 border border-gray-200 dark:border-zinc-800 rounded px-3 py-2">
-                <span className="text-gray-400 dark:text-zinc-600 font-mono text-xs mt-0.5 shrink-0">{i + 1}.</span>
-                <span>{t}</span>
-              </li>
-            ))}
-          </ul>
         </Section>
       )}
 

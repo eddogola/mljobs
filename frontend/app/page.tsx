@@ -91,6 +91,12 @@ function HomeContent() {
           <p className="text-xs lg:text-sm text-gray-500 dark:text-zinc-500 mt-0.5 hidden sm:block">ML/AI engineering jobs · click any skill to filter</p>
         </div>
         <div className="flex items-center gap-1">
+          <Link
+            href="/prep"
+            className="text-xs font-medium px-2.5 py-1.5 rounded-md text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors"
+          >
+            Interview Prep
+          </Link>
           {/* Mobile: skills landscape toggle */}
           <button
             onClick={() => setShowMobileLandscape((v: boolean) => !v)}

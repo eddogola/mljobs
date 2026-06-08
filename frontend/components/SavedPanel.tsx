@@ -13,13 +13,14 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import {
-  getSavedJobs, getSavedSkills, unsaveJob, unsaveSkill, saveSkill,
-  reorderSkillsInCategory, getSectionOrder, setSectionOrder,
+  getCachedJobs, getCachedSkills, getCachedSectionOrderArray,
+  fetchSavedJobs, fetchSavedSkills,
+  unsaveJob, unsaveSkill, saveSkill,
+  reorderSkillsInCategory, setSectionOrder,
   SavedJob, SavedSkill,
 } from "@/lib/saved";
 import { GROUP_STYLES } from "@/lib/conceptCategories";
 
-const SKILLS_KEY = "joblens_saved_skills";
 
 type Tab = "jobs" | "skills";
 
@@ -109,21 +110,31 @@ export default function SavedPanel() {
   const panelRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  function reload() {
-    setJobs(getSavedJobs());
-    const s = getSavedSkills();
-    setSkills(s);
-    setSectionOrderState(getSectionOrder());
+  // Read from cache instantly (no flicker), then fetch from API
+  function loadFromCache() {
+    setJobs(getCachedJobs());
+    setSkills(getCachedSkills());
+    setSectionOrderState(getCachedSectionOrderArray());
   }
 
-  useEffect(() => { reload(); }, []);
+  async function reload() {
+    loadFromCache(); // instant
+    const [jobsData, skillsData] = await Promise.all([fetchSavedJobs(), fetchSavedSkills()]);
+    setJobs(jobsData);
+    setSkills(skillsData.skills);
+    const order = Object.entries(skillsData.section_order)
+      .sort((a, b) => a[1] - b[1]).map(([k]) => k);
+    setSectionOrderState(order);
+  }
+
+  useEffect(() => { reload(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    window.addEventListener("joblens:saved", reload);
-    return () => window.removeEventListener("joblens:saved", reload);
+    window.addEventListener("joblens:saved", loadFromCache);
+    return () => window.removeEventListener("joblens:saved", loadFromCache);
   }, []);
 
-  useEffect(() => { if (open) reload(); }, [open]);
+  useEffect(() => { if (open) reload(); }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     function handler(e: MouseEvent) {
@@ -176,8 +187,8 @@ export default function SavedPanel() {
     const newIdx = activeCategories.indexOf(String(over.id));
     if (oldIdx !== -1 && newIdx !== -1) {
       const reordered = arrayMove(activeCategories, oldIdx, newIdx);
-      setSectionOrder(reordered);
       setSectionOrderState(reordered);
+      setSectionOrder(reordered); // async — persists to server
     }
   }
   // Categories with no skills get no section unless user clicks "Add to section"
@@ -239,10 +250,10 @@ export default function SavedPanel() {
                 ) : (
                   <ul>
                     {jobs.map((job) => (
-                      <li key={job.id} className="flex items-start gap-2 px-4 py-3 border-b border-gray-50 dark:border-zinc-800 hover:bg-gray-50 dark:hover:bg-zinc-800/50">
+                      <li key={job.job_id} className="flex items-start gap-2 px-4 py-3 border-b border-gray-50 dark:border-zinc-800 hover:bg-gray-50 dark:hover:bg-zinc-800/50">
                         <div className="flex-1 min-w-0">
                           <Link
-                            href={`/jobs/${job.id}`}
+                            href={`/jobs/${job.job_id}`}
                             onClick={() => setOpen(false)}
                             className="text-sm font-medium text-gray-800 dark:text-zinc-200 hover:underline truncate block"
                           >
@@ -255,7 +266,7 @@ export default function SavedPanel() {
                             className="text-[11px] text-gray-400 hover:text-gray-700 dark:text-zinc-500 dark:hover:text-zinc-300" title="Apply">
                             ↗
                           </a>
-                          <button onClick={() => { unsaveJob(job.id); reload(); }}
+                          <button onClick={() => { unsaveJob(job.job_id); reload(); }}
                             className="text-[11px] text-gray-300 hover:text-red-400 dark:text-zinc-600 dark:hover:text-red-400" title="Remove">
                             ✕
                           </button>
@@ -279,8 +290,8 @@ export default function SavedPanel() {
                 {skills.length > 0 && (
                   <div className="flex justify-end mb-1">
                     <button
-                      onClick={() => {
-                        localStorage.removeItem(SKILLS_KEY);
+                      onClick={async () => {
+                        await Promise.all(skills.map((s) => unsaveSkill(s.skill)));
                         reload();
                       }}
                       className="text-[10px] text-gray-300 dark:text-zinc-600 hover:text-red-400 dark:hover:text-red-400"

@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import useSWR from "swr";
 import { GROUP_STYLES } from "@/lib/conceptCategories";
-import { saveSkill, unsaveSkill, getSavedSkills } from "@/lib/saved";
+import { saveSkill, unsaveSkill, getCachedSkills, fetchSavedSkills } from "@/lib/saved";
 
 interface SkillEntry {
   skill: string;
@@ -52,8 +52,9 @@ export default function SkillsLandscape({ activeSkill, onSkillClick }: Props) {
 
   const [savedSkills, setSavedSkills] = useState<Set<string>>(new Set());
   useEffect(() => {
-    const load = () => setSavedSkills(new Set(getSavedSkills().map((s) => s.skill)));
+    const load = () => setSavedSkills(new Set(getCachedSkills().map((s) => s.skill)));
     load();
+    fetchSavedSkills().then(({ skills }) => setSavedSkills(new Set(skills.map((s) => s.skill))));
     window.addEventListener("joblens:saved", load);
     return () => window.removeEventListener("joblens:saved", load);
   }, []);
@@ -61,11 +62,12 @@ export default function SkillsLandscape({ activeSkill, onSkillClick }: Props) {
   function toggleSkillSave(skill: string, group: string, e: React.MouseEvent) {
     e.stopPropagation();
     if (savedSkills.has(skill)) {
+      setSavedSkills((prev) => { const n = new Set(prev); n.delete(skill); return n; });
       unsaveSkill(skill);
     } else {
+      setSavedSkills((prev) => new Set(prev).add(skill));
       saveSkill(skill, group);
     }
-    setSavedSkills(new Set(getSavedSkills().map((s) => s.skill)));
   }
 
   if (isLoading) {
