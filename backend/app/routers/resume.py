@@ -1,5 +1,6 @@
+import io
 import uuid
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from app.database import get_db
@@ -24,6 +25,26 @@ def get_resume(db: Session = Depends(get_db)):
     if not resume:
         raise HTTPException(status_code=404, detail="No resume uploaded yet")
     return {"id": resume.id, "filename": resume.filename, "content": resume.content, "created_at": resume.created_at}
+
+
+@router.post("/upload-pdf")
+async def upload_pdf(file: UploadFile = File(...), db: Session = Depends(get_db)):
+    if not file.filename or not file.filename.endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="Only PDF files are accepted")
+    try:
+        from pypdf import PdfReader
+        data = await file.read()
+        reader = PdfReader(io.BytesIO(data))
+        text = "\n\n".join(page.extract_text() or "" for page in reader.pages).strip()
+    except Exception as e:
+        raise HTTPException(status_code=422, detail=f"Could not parse PDF: {e}")
+    if not text:
+        raise HTTPException(status_code=422, detail="PDF appears to have no extractable text (try a text-based PDF, not a scan)")
+    resume = Resume(id=str(uuid.uuid4()), filename=file.filename, content=text)
+    db.add(resume)
+    db.commit()
+    db.refresh(resume)
+    return {"id": resume.id, "filename": resume.filename, "created_at": resume.created_at, "preview": text[:300]}
 
 
 @router.post("")
